@@ -5,7 +5,8 @@
 set -e
 
 CLAUDE_DIR="$HOME/.claude"
-SKILLS_DIR="$CLAUDE_DIR/skills/gas"
+GAS_SKILLS_DIR="$CLAUDE_DIR/skills/gas"
+GASPOLL_SKILLS_DIR="$CLAUDE_DIR/skills/gaspoll"
 HOOKS_DIR="$CLAUDE_DIR/hooks"
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
 
@@ -14,10 +15,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo "Installing Gas Mode for Claude Code..."
 echo ""
 
-# Install skill
-mkdir -p "$SKILLS_DIR"
-cp "$SCRIPT_DIR/skills/gas/SKILL.md" "$SKILLS_DIR/SKILL.md"
-echo "  Installed skill: gas -> $SKILLS_DIR/SKILL.md"
+# Install skills
+mkdir -p "$GAS_SKILLS_DIR" "$GASPOLL_SKILLS_DIR"
+cp "$SCRIPT_DIR/skills/gas/SKILL.md" "$GAS_SKILLS_DIR/SKILL.md"
+echo "  Installed skill: /gas     -> $GAS_SKILLS_DIR/SKILL.md"
+cp "$SCRIPT_DIR/skills/gaspoll/SKILL.md" "$GASPOLL_SKILLS_DIR/SKILL.md"
+echo "  Installed skill: /gaspoll -> $GASPOLL_SKILLS_DIR/SKILL.md"
 
 # Install hook script
 mkdir -p "$HOOKS_DIR"

@@ -1,0 +1,72 @@
+---
+name: gaspoll
+description: Like /gas but with self-generating tasks — after completing the plan, it reviews its own work, discovers errors, improvements, and new opportunities, then creates follow-up tasks automatically. Keeps going until there's truly nothing left to improve.
+user-invocable: true
+argument-hint: "<task description>"
+---
+
+You are in autonomous work mode with **self-generating tasks**. Work through the task below WITHOUT asking for confirmation. After completing your initial plan, you will review your own work and generate follow-up tasks if needed.
+
+## Task
+$ARGUMENTS
+
+## Rules
+
+1. **Lock file**: As your FIRST action, create `.claude/gas.lock` with the current timestamp.
+2. **Never ask** "should I implement this?", "would you like me to...", or any confirmation question. Just do it.
+3. **Skill discovery**: Before planning, review the available skills listed in the conversation context (system-reminder messages). If any skill would help, incorporate it into your plan and invoke it using the `Skill` tool at the appropriate step.
+4. **Plan first**: Use `TaskCreate` to create your initial task plan. One task per step.
+5. **Execute each item**: Mark `in_progress` with `TaskUpdate` before starting, `completed` when done.
+6. **Verify each step** works (run tests, check for errors) before moving to the next.
+7. **After each step**, use `TaskList` to check remaining tasks → if pending tasks remain, continue.
+8. If you encounter a blocker you truly cannot solve, describe it briefly and output: **BLOCKED**
+9. **Lock cleanup**: After outputting **DONE** or **BLOCKED**, delete `.claude/gas.lock`.
+10. Follow all project conventions from CLAUDE.md.
+
+## Self-Reflection Loop (what makes /gaspoll different from /gas)
+
+When all initial tasks are `completed`, **DO NOT output DONE yet**. Instead, enter the self-reflection loop:
+
+### Step 1 — Review
+Examine everything you just did:
+- Re-read changed files and look for bugs, typos, edge cases, or inconsistencies
+- Run tests, linters, or type-checkers if available
+- Check if the code compiles/runs correctly
+- Look at the broader context — did your changes break anything else?
+
+### Step 2 — Discover
+Think creatively about what else could be done:
+- **Errors found?** → Create fix tasks
+- **Tests missing?** → Create test tasks
+- **Code quality issues?** → Create refactoring tasks (use `/simplify` if appropriate)
+- **Documentation outdated?** → Create doc update tasks
+- **Related improvements spotted?** → Create enhancement tasks
+- **Security concerns?** → Create security fix tasks
+- **Performance issues noticed?** → Create optimization tasks
+- **Edge cases not handled?** → Create robustness tasks
+
+### Step 3 — Decide
+- If you generated new tasks → go back to executing them (rule 5-7)
+- If after honest review there is genuinely nothing more to do → output exactly: **DONE**
+
+### Loop limit
+- You may run the self-reflection loop up to **3 times** to avoid infinite loops
+- Each loop should discover fewer issues than the previous one
+- On the 3rd loop, if you still find issues, fix only critical ones then output **DONE**
+
+## Flow
+
+```
+Create .claude/gas.lock
+  → Scan available skills → Plan (TaskCreate)
+  → Execute → Verify → TaskUpdate completed
+  → All tasks done?
+      ├─ No → Continue to next task
+      └─ Yes → SELF-REFLECTION LOOP
+                  → Review work → Discover opportunities → New tasks?
+                      ├─ Yes → TaskCreate new tasks → Execute loop again
+                      └─ No  → **DONE**
+  → Delete .claude/gas.lock
+```
+
+Start now. Do not ask any questions. Begin by creating the lock file, then planning.

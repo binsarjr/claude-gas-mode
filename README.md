@@ -4,26 +4,36 @@ Autonomous work mode for [Claude Code](https://docs.anthropic.com/en/docs/claude
 
 ## What It Does
 
-When you run `/gas <task>`, Claude enters autonomous mode:
+This plugin provides two skills:
 
+### `/gas` — Autonomous execution
+When you run `/gas <task>`, Claude enters autonomous mode:
 1. Creates a lock file (`.claude/gas.lock`)
 2. Creates a structured task plan using Claude Code's **built-in task system** (`TaskCreate`)
 3. Executes each task, updating status (`in_progress` → `completed`) as it goes
 4. **Cannot stop** until all tasks are completed — the stop hook blocks premature exits
 5. Outputs `**DONE**` or `**BLOCKED**` when finished, cleaning up the lock
 
-Without gas mode, Claude may stop to ask clarifying questions or pause between steps. Gas mode forces continuous execution through the entire plan.
+### `/gaspoll` — Autonomous execution with self-generating tasks
+Like `/gas`, but with a **self-reflection loop**. After completing all initial tasks, Claude:
+1. Reviews its own work — re-reads changed files, runs tests, checks for bugs
+2. Discovers improvements — missing tests, code quality issues, edge cases, security concerns
+3. Self-generates new tasks if it finds anything worth fixing
+4. Keeps going until there's genuinely nothing left to improve (up to 3 reflection rounds)
+
+Use `/gas` when you know exactly what you want done. Use `/gaspoll` when you want Claude to be thorough and find things you might have missed.
 
 ## How It Works
 
-Two components work together:
+Three components work together:
 
 | Component | Purpose |
 |-----------|---------|
-| `skills/gas/SKILL.md` | Skill — the prompt that tells Claude how to work autonomously |
+| `skills/gas/SKILL.md` | `/gas` skill — autonomous execution |
+| `skills/gaspoll/SKILL.md` | `/gaspoll` skill — autonomous execution with self-reflection |
 | `hook-scripts/gas-stop-hook.js` | Stop hook — blocks Claude from stopping while tasks remain incomplete |
 
-The skill instructs Claude to use the built-in `TaskCreate`/`TaskUpdate`/`TaskList` tools for task management. The stop hook checks for the lock file and completion markers (`**DONE**`/`**BLOCKED**`) — if gas mode is active and no completion marker is found, the hook blocks the stop and tells Claude to keep working.
+Both skills use Claude Code's built-in `TaskCreate`/`TaskUpdate`/`TaskList` tools for task management. The stop hook checks for the lock file and completion markers (`**DONE**`/`**BLOCKED**`) — if gas mode is active and no completion marker is found, the hook blocks the stop.
 
 ## Installation
 
@@ -75,11 +85,12 @@ Then add the Stop hook to `~/.claude/settings.json`:
 
 ### Option C: Manual
 
-1. Copy the skill:
+1. Copy the skills:
 
 ```bash
-mkdir -p ~/.claude/skills/gas
+mkdir -p ~/.claude/skills/gas ~/.claude/skills/gaspoll
 cp skills/gas/SKILL.md ~/.claude/skills/gas/SKILL.md
+cp skills/gaspoll/SKILL.md ~/.claude/skills/gaspoll/SKILL.md
 ```
 
 2. Copy the hook:
@@ -105,17 +116,32 @@ Claude should immediately start working without asking questions.
 
 ```
 /gas <your task description>
+/gaspoll <your task description>
 ```
 
 ### Examples
 
-```
+```bash
+# Autonomous execution — stops when plan is done
 /gas add dark mode support to the settings page
 /gas fix all TypeScript errors in src/
-/gas refactor the auth module to use JWT tokens
-/gas read the error logs and fix all issues
-/gas add unit tests for the user service
+
+# Self-generating tasks — reviews and improves its own work
+/gaspoll refactor the auth module to use JWT tokens
+/gaspoll add unit tests for the user service
+/gaspoll build a REST API for the billing module
 ```
+
+### When to use `/gaspoll` over `/gas`
+
+| Scenario | Use |
+|----------|-----|
+| Clear, well-defined task | `/gas` |
+| Exploratory or complex task | `/gaspoll` |
+| You want exactly what you asked, nothing more | `/gas` |
+| You want Claude to find and fix things you missed | `/gaspoll` |
+| Quick fix or small change | `/gas` |
+| Building a new feature end-to-end | `/gaspoll` |
 
 ### Stopping Gas Mode
 
@@ -168,8 +194,10 @@ claude-gas-mode/
 ├── .claude-plugin/
 │   └── plugin.json           # Plugin manifest for marketplace distribution
 ├── skills/
-│   └── gas/
-│       └── SKILL.md          # The /gas skill definition
+│   ├── gas/
+│   │   └── SKILL.md          # The /gas skill definition
+│   └── gaspoll/
+│       └── SKILL.md          # The /gaspoll skill definition
 ├── hooks/
 │   └── hooks.json            # Plugin hook registration
 ├── hook-scripts/
