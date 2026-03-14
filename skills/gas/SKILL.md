@@ -1,3 +1,10 @@
+---
+name: gas
+description: Autonomous work mode — gives Claude a task and it won't stop until every item in the plan is done. Use when you want uninterrupted, plan-driven execution.
+user-invocable: true
+argument-hint: "<task description>"
+---
+
 You are in autonomous work mode. Work through the task below WITHOUT asking for confirmation at any step.
 
 ## Task

@@ -18,28 +18,38 @@ Without gas mode, Claude may stop to ask clarifying questions or pause between s
 
 Two components work together:
 
-| File | Purpose |
-|------|---------|
-| `gas.md` | Slash command — the prompt that tells Claude how to work autonomously |
-| `gas-stop-hook.js` | Stop hook — blocks Claude from stopping while tasks remain unchecked |
+| Component | Purpose |
+|-----------|---------|
+| `skills/gas/SKILL.md` | Skill — the prompt that tells Claude how to work autonomously |
+| `hook-scripts/gas-stop-hook.js` | Stop hook — blocks Claude from stopping while tasks remain unchecked |
 
 The stop hook reads `tasks/todo.md` in the current project and checks for unchecked items (`- [ ]`). If any remain, it blocks the stop and tells Claude to keep working.
 
 ## Installation
 
-### 1. Copy the stop hook
+### Option A: Plugin (Recommended)
+
+If your Claude Code supports plugins:
 
 ```bash
-# Create hooks directory
-mkdir -p ~/.claude/hooks
-
-# Copy the hook
-cp gas-stop-hook.js ~/.claude/hooks/gas-stop-hook.js
+/plugin install gas-mode
 ```
 
-### 2. Register the hook in your settings
+Or add the marketplace manually:
 
-Add the Stop hook to `~/.claude/settings.json`:
+```bash
+/plugin marketplace add https://github.com/binsarjr/claude-gas-mode
+```
+
+### Option B: Install Script
+
+```bash
+git clone https://github.com/binsarjr/claude-gas-mode.git
+cd claude-gas-mode
+./install.sh
+```
+
+Then add the Stop hook to `~/.claude/settings.json`:
 
 ```jsonc
 {
@@ -61,25 +71,27 @@ Add the Stop hook to `~/.claude/settings.json`:
 }
 ```
 
-> **Note:** You can use `bun` instead of `node` if you have it installed — it's faster.
+> **Tip:** Use `bun` instead of `node` for faster hook execution.
 
-### 3. Copy the slash command
+### Option C: Manual
 
-**User-level** (works in all projects):
-
-```bash
-mkdir -p ~/.claude/commands
-cp gas.md ~/.claude/commands/gas.md
-```
-
-**Project-level** (single project only):
+1. Copy the skill:
 
 ```bash
-mkdir -p .claude/commands
-cp gas.md .claude/commands/gas.md
+mkdir -p ~/.claude/skills/gas
+cp skills/gas/SKILL.md ~/.claude/skills/gas/SKILL.md
 ```
 
-### 4. Verify
+2. Copy the hook:
+
+```bash
+mkdir -p ~/.claude/hooks
+cp hook-scripts/gas-stop-hook.js ~/.claude/hooks/gas-stop-hook.js
+```
+
+3. Register the hook in `~/.claude/settings.json` (see above).
+
+### Verify
 
 Open Claude Code in any project and type:
 
@@ -116,7 +128,14 @@ Gas mode ends when Claude outputs **DONE** or **BLOCKED**. If you need to force-
 
 ### Adding project-specific rules
 
-You can extend the command for your project. Copy `gas.md` to `.claude/commands/gas.md` in your project and add rules:
+Copy the skill to your project and extend it:
+
+```bash
+mkdir -p .claude/skills/gas
+cp ~/.claude/skills/gas/SKILL.md .claude/skills/gas/SKILL.md
+```
+
+Then add rules:
 
 ```markdown
 ## Rules
@@ -126,18 +145,6 @@ You can extend the command for your project. Copy `gas.md` to `.claude/commands/
 10. Run `npm test` after modifying code.
 11. Use TypeScript strict mode.
 12. Follow the project's ESLint configuration.
-```
-
-### Adding skill integration
-
-If you use the [superpowers](https://github.com/claude-plugins-official/superpowers) plugin, you can add skill scanning to your `gas.md`:
-
-```markdown
-## Rules
-
-... existing rules ...
-
-3. **Skill check**: Before planning, scan available skills and invoke every relevant one.
 ```
 
 ## How the Stop Hook Works
@@ -155,16 +162,32 @@ Hook checks: .claude/gas.lock exists?
                     └─ No todo.md → Block stop, ask to create plan
 ```
 
-## File Structure
+## Project Structure
 
-When gas mode is active, your project will have:
+```
+claude-gas-mode/
+├── .claude-plugin/
+│   └── plugin.json           # Plugin manifest for marketplace distribution
+├── skills/
+│   └── gas/
+│       └── SKILL.md          # The /gas skill definition
+├── hooks/
+│   └── hooks.json            # Plugin hook registration
+├── hook-scripts/
+│   └── gas-stop-hook.js      # Stop hook logic
+├── install.sh                # Manual installer
+├── LICENSE
+└── README.md
+```
+
+When gas mode is active in your project:
 
 ```
 your-project/
 ├── .claude/
-│   └── gas.lock          # Created when gas starts, deleted when done
+│   └── gas.lock              # Created when gas starts, deleted when done
 └── tasks/
-    └── todo.md           # The plan with checkable items
+    └── todo.md               # The plan with checkable items
 ```
 
 Both files are ephemeral — `gas.lock` is auto-deleted on completion, and `todo.md` serves as a progress tracker you can review.

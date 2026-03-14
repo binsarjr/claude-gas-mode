@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$PLUGIN_DIR/hook-scripts/gas-stop-hook.js\"",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
+  }
+}

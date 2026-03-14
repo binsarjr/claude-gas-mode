@@ -1,0 +1,14 @@
+{
+  "name": "gas-mode",
+  "description": "Autonomous work mode for Claude Code — gives Claude a task and it won't stop until every item in the plan is done",
+  "version": "1.1.0",
+  "author": {
+    "name": "Binsar",
+    "url": "https://github.com/binsarjr"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/binsarjr/claude-gas-mode.git"
+  },
+  "license": "MIT"
+}
