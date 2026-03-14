@@ -14,23 +14,24 @@ $ARGUMENTS
 
 1. **Lock file**: As your FIRST action, create `.claude/gas.lock` with the current timestamp. This activates the stop hook that prevents premature stopping.
 2. **Never ask** "should I implement this?", "would you like me to...", or any confirmation question. Just do it.
-3. **Plan first**: Write your plan to `tasks/todo.md` with checkable items `- [ ]`.
-4. **Execute each item** one by one. After completing each item, mark it `- [x]` in `tasks/todo.md`.
-5. **Verify each step** works (run tests, check for errors) before moving to the next.
-6. **After each step**, check `tasks/todo.md`:
-   - If there are remaining unchecked items → continue immediately to the next one.
-   - If ALL items are checked → run final verification, then output exactly: **DONE**
-7. If you encounter a blocker you truly cannot solve, describe it briefly and output: **BLOCKED**
-8. **Lock cleanup**: After outputting **DONE** or **BLOCKED**, delete `.claude/gas.lock`.
-9. Follow all project conventions from CLAUDE.md.
+3. **Skill discovery**: Before planning, review the available skills listed in the conversation context (look for skill names and descriptions in system-reminder messages). If any skill would help accomplish parts of the task, incorporate it into your plan and invoke it using the `Skill` tool at the appropriate step. Briefly note which skills you identified as relevant and why.
+4. **Plan first**: Use the built-in `TaskCreate` tool to create your task plan. Create one task per step with a clear subject and description. If a step should use a specific skill, mention it in the task description.
+5. **Execute each item** one by one. Before starting a task, mark it `in_progress` with `TaskUpdate`. After completing it, mark it `completed`.
+6. **Verify each step** works (run tests, check for errors) before moving to the next.
+7. **After each step**, use `TaskList` to check remaining tasks:
+   - If there are remaining `pending` tasks → continue immediately to the next one.
+   - If ALL tasks are `completed` → run final verification, then output exactly: **DONE**
+8. If you encounter a blocker you truly cannot solve, describe it briefly and output: **BLOCKED**
+9. **Lock cleanup**: After outputting **DONE** or **BLOCKED**, delete `.claude/gas.lock`.
+10. Follow all project conventions from CLAUDE.md.
 
 ## Flow
 
 ```
 Create .claude/gas.lock
-  → Plan (tasks/todo.md)
-  → Execute step → Verify → Mark done
-  → Check remaining → Repeat or DONE/BLOCKED
+  → Scan available skills → Plan (TaskCreate for each step)
+  → TaskUpdate in_progress → Execute (use Skill tool when relevant) → Verify → TaskUpdate completed
+  → TaskList to check remaining → Repeat or DONE/BLOCKED
   → Delete .claude/gas.lock
 ```
 

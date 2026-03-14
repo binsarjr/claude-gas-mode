@@ -7,9 +7,9 @@ Autonomous work mode for [Claude Code](https://docs.anthropic.com/en/docs/claude
 When you run `/gas <task>`, Claude enters autonomous mode:
 
 1. Creates a lock file (`.claude/gas.lock`)
-2. Writes a plan to `tasks/todo.md` with checkable items
-3. Executes each item, marking them `- [x]` as it goes
-4. **Cannot stop** until all items are checked — the stop hook blocks premature exits
+2. Creates a structured task plan using Claude Code's **built-in task system** (`TaskCreate`)
+3. Executes each task, updating status (`in_progress` → `completed`) as it goes
+4. **Cannot stop** until all tasks are completed — the stop hook blocks premature exits
 5. Outputs `**DONE**` or `**BLOCKED**` when finished, cleaning up the lock
 
 Without gas mode, Claude may stop to ask clarifying questions or pause between steps. Gas mode forces continuous execution through the entire plan.
@@ -21,9 +21,9 @@ Two components work together:
 | Component | Purpose |
 |-----------|---------|
 | `skills/gas/SKILL.md` | Skill — the prompt that tells Claude how to work autonomously |
-| `hook-scripts/gas-stop-hook.js` | Stop hook — blocks Claude from stopping while tasks remain unchecked |
+| `hook-scripts/gas-stop-hook.js` | Stop hook — blocks Claude from stopping while tasks remain incomplete |
 
-The stop hook reads `tasks/todo.md` in the current project and checks for unchecked items (`- [ ]`). If any remain, it blocks the stop and tells Claude to keep working.
+The skill instructs Claude to use the built-in `TaskCreate`/`TaskUpdate`/`TaskList` tools for task management. The stop hook checks for the lock file and completion markers (`**DONE**`/`**BLOCKED**`) — if gas mode is active and no completion marker is found, the hook blocks the stop and tells Claude to keep working.
 
 ## Installation
 
@@ -156,11 +156,10 @@ Hook checks: .claude/gas.lock exists?
   ├─ No  → Allow stop (not in gas mode)
   └─ Yes → Check last message for **DONE** / **BLOCKED**
               ├─ Found → Delete lock, allow stop
-              └─ Not found → Read tasks/todo.md
-                    ├─ Has unchecked items → Block stop, list remaining tasks
-                    ├─ All checked → Block stop, ask for verification + DONE marker
-                    └─ No todo.md → Block stop, ask to create plan
+              └─ Not found → Block stop, tell Claude to use TaskList and continue
 ```
+
+The hook is intentionally simple — all task state lives in Claude Code's built-in task system. The hook only needs to know whether gas mode is active (lock file) and whether Claude has declared completion (markers).
 
 ## Project Structure
 
@@ -186,11 +185,9 @@ When gas mode is active in your project:
 your-project/
 ├── .claude/
 │   └── gas.lock              # Created when gas starts, deleted when done
-└── tasks/
-    └── todo.md               # The plan with checkable items
 ```
 
-Both files are ephemeral — `gas.lock` is auto-deleted on completion, and `todo.md` serves as a progress tracker you can review.
+The lock file is ephemeral — auto-deleted on completion. Task progress is tracked through Claude Code's built-in task system, visible in the CLI status line.
 
 ## Requirements
 
