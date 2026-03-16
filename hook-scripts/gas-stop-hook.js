@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Gas Stop Hook — Prevents Claude Code from stopping mid-task during /gas mode.
+ * Gas Stop Hook — Prevents Claude Code from stopping mid-task during /gas or /gaspoll mode.
  *
  * Works across all projects by using `cwd` from the hook input data.
  * Uses Claude Code's built-in task system (TaskCreate/TaskUpdate/TaskList)
@@ -10,7 +10,9 @@
  * 1. If stop_hook_active is set → allow stop (prevent infinite loop)
  * 2. If .claude/gas.lock doesn't exist in cwd → allow stop (not in gas mode)
  * 3. If last message contains **DONE** or **BLOCKED** → clean up lock, allow stop
- * 4. Otherwise → block stop, tell Claude to continue working
+ * 4. Otherwise → block stop with context-aware message:
+ *    - If gaspoll mode: remind about self-reflection loop & completion audit
+ *    - If gas mode: remind to check TaskList and continue
  */
 
 import { readFileSync, existsSync, unlinkSync } from "fs";
@@ -67,6 +69,59 @@ function removeLock(lockPath) {
   }
 }
 
+function readLockFile(lockPath) {
+  try {
+    return readFileSync(lockPath, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function isGaspollMode(lockContent, transcript) {
+  // Check lock file content for gaspoll marker
+  if (lockContent.includes("gaspoll")) return true;
+
+  // Check transcript for /gaspoll invocation
+  const messages = transcript || [];
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      const content = Array.isArray(msg.content)
+        ? msg.content.map((b) => b.text || "").join("\n")
+        : String(msg.content || "");
+      if (content.includes("/gaspoll")) return true;
+    }
+  }
+  return false;
+}
+
+function hasCompletedTasksButNoReflection(lastMessage) {
+  // Heuristic: Claude mentions tasks are done / completed but hasn't done reflection
+  const completionSignals = [
+    "all tasks",
+    "tasks are completed",
+    "tasks completed",
+    "everything is done",
+    "all done",
+    "finished all",
+    "completed all",
+  ];
+  const reflectionSignals = [
+    "completion audit",
+    "self-reflection",
+    "fresh eyes",
+    "user perspective",
+    "dependency check",
+    "re-read the original task",
+    "reflection loop",
+  ];
+
+  const lowerMsg = lastMessage.toLowerCase();
+  const hasCompletion = completionSignals.some((s) => lowerMsg.includes(s));
+  const hasReflection = reflectionSignals.some((s) => lowerMsg.includes(s));
+
+  return hasCompletion && !hasReflection;
+}
+
 // --- Main ---
 
 const data = readStdin();
@@ -99,8 +154,43 @@ if (lastMessage.includes("**BLOCKED**")) {
 }
 
 // 4. Block — gas mode is active but no completion marker found
-block(
-  "GAS MODE ACTIVE: You have not completed all tasks yet. " +
-    "Use TaskList to check your remaining tasks, then continue working on the next pending item. " +
-    "Do not stop until all tasks are completed and you output **DONE** or **BLOCKED**."
+const lockContent = readLockFile(lockPath);
+const gaspollMode = isGaspollMode(
+  lockContent,
+  data.transcript_messages || []
 );
+
+if (gaspollMode) {
+  // Gaspoll-specific: enforce self-reflection loop and completion audit
+  const skippedReflection = hasCompletedTasksButNoReflection(lastMessage);
+
+  if (skippedReflection) {
+    block(
+      "GASPOLL MODE ACTIVE: You completed tasks but SKIPPED the self-reflection loop. " +
+        "DO NOT STOP. You MUST run the Completion Audit now:\n" +
+        "1. Re-read the original task — compare what was asked vs what was delivered. Any gaps?\n" +
+        "2. Fresh eyes check — if you started from scratch, what would you do differently?\n" +
+        "3. User perspective — walk through the user's experience step by step. What breaks? What's missing?\n" +
+        "4. Dependency check — did your changes require updates elsewhere? Config, imports, env vars?\n" +
+        "5. Generate new tasks with TaskCreate if ANY gaps are found.\n" +
+        "Only output **DONE** when there is genuinely nothing left to improve."
+    );
+  } else {
+    block(
+      "GASPOLL MODE ACTIVE: You have not completed all tasks yet. " +
+        "Use TaskList to check remaining tasks and continue working. " +
+        "Remember: after ALL tasks are done, you MUST run the self-reflection loop " +
+        "(Review → Discover → Completion Audit → Decide). " +
+        "Check if work is truly complete from the user's perspective. " +
+        "Generate new tasks if anything is missing. " +
+        "Do not output **DONE** until you have honestly verified everything is complete."
+    );
+  }
+} else {
+  // Regular gas mode
+  block(
+    "GAS MODE ACTIVE: You have not completed all tasks yet. " +
+      "Use TaskList to check your remaining tasks, then continue working on the next pending item. " +
+      "Do not stop until all tasks are completed and you output **DONE** or **BLOCKED**."
+  );
+}

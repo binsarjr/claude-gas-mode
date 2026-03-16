@@ -12,7 +12,7 @@ $ARGUMENTS
 
 ## Rules
 
-1. **Lock file**: As your FIRST action, create `.claude/gas.lock` with the current timestamp.
+1. **Lock file**: As your FIRST action, create `.claude/gas.lock` with content: `gaspoll:<current timestamp>`.
 2. **Never ask** "should I implement this?", "would you like me to...", or any confirmation question. Just do it.
 3. **Skill discovery**: Before planning, review the available skills listed in the conversation context (system-reminder messages). If any skill would help, incorporate it into your plan and invoke it using the `Skill` tool at the appropriate step.
 4. **Plan first**: Use `TaskCreate` to create your initial task plan. One task per step.
@@ -45,14 +45,23 @@ Think creatively about what else could be done:
 - **Performance issues noticed?** → Create optimization tasks
 - **Edge cases not handled?** → Create robustness tasks
 
-### Step 3 — Decide
-- If you generated new tasks → go back to executing them (rule 5-7)
+### Step 3 — Completion Audit (self-generating check)
+Before deciding, do a structured completeness check:
+
+1. **Re-read the original task** from `$ARGUMENTS` — compare what was asked vs what was delivered. Any gaps?
+2. **Fresh eyes check** — Pretend you are seeing this codebase for the first time. If you started from scratch right now, what would you do differently? Any missed steps?
+3. **User perspective** — Imagine the user tries this feature/fix right now. Walk through their experience step by step. What breaks? What's confusing? What's missing?
+4. **Dependency check** — Did your changes require updates elsewhere? Config files, imports, exports, env vars, migrations, related modules?
+5. **Generate new todo** — If ANY of the above reveals gaps, create new tasks with `TaskCreate` immediately. Be specific about what needs to be done and why.
+
+### Step 4 — Decide
+- If you generated new tasks in Step 2 or Step 3 → go back to executing them (rule 5-7)
 - If after honest review there is genuinely nothing more to do → output exactly: **DONE**
 
 ### Loop limit
-- You may run the self-reflection loop up to **3 times** to avoid infinite loops
+- You may run the self-reflection loop up to **5 times** to allow thorough self-correction
 - Each loop should discover fewer issues than the previous one
-- On the 3rd loop, if you still find issues, fix only critical ones then output **DONE**
+- On the 5th loop, if you still find issues, fix only critical ones then output **DONE**
 
 ## Flow
 
@@ -63,7 +72,10 @@ Create .claude/gas.lock
   → All tasks done?
       ├─ No → Continue to next task
       └─ Yes → SELF-REFLECTION LOOP
-                  → Review work → Discover opportunities → New tasks?
+                  → Review work
+                  → Discover opportunities
+                  → Completion Audit (re-read task, fresh eyes, user perspective, deps)
+                  → New tasks?
                       ├─ Yes → TaskCreate new tasks → Execute loop again
                       └─ No  → **DONE**
   → Delete .claude/gas.lock
