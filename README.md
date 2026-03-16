@@ -15,11 +15,12 @@ When you run `/gas <task>`, Claude enters autonomous mode:
 5. Outputs `**DONE**` or `**BLOCKED**` when finished, cleaning up the lock
 
 ### `/gaspoll` — Autonomous execution with self-generating tasks
-Like `/gas`, but with a **self-reflection loop**. After completing all initial tasks, Claude:
+Like `/gas`, but with a **self-reflection loop + completion audit**. After completing all initial tasks, Claude:
 1. Reviews its own work — re-reads changed files, runs tests, checks for bugs
 2. Discovers improvements — missing tests, code quality issues, edge cases, security concerns
-3. Self-generates new tasks if it finds anything worth fixing
-4. Keeps going until there's genuinely nothing left to improve (up to 3 reflection rounds)
+3. Runs a **Completion Audit** — re-reads the original task, does a fresh-eyes check, walks through the user's perspective, checks dependencies
+4. Self-generates new tasks if it finds anything worth fixing
+5. Keeps going until there's genuinely nothing left to improve (up to 5 reflection rounds)
 
 Use `/gas` when you know exactly what you want done. Use `/gaspoll` when you want Claude to be thorough and find things you might have missed.
 
@@ -37,21 +38,9 @@ Both skills use Claude Code's built-in `TaskCreate`/`TaskUpdate`/`TaskList` tool
 
 ## Installation
 
-### Option A: Plugin (Recommended)
+### Option A: Install Script (Recommended)
 
-If your Claude Code supports plugins:
-
-```bash
-/plugin install gas-mode
-```
-
-Or add the marketplace manually:
-
-```bash
-/plugin marketplace add https://github.com/binsarjr/claude-gas-mode
-```
-
-### Option B: Install Script
+One command — copies skills, hook, and auto-registers in `settings.json`:
 
 ```bash
 git clone https://github.com/binsarjr/claude-gas-mode.git
@@ -59,7 +48,40 @@ cd claude-gas-mode
 ./install.sh
 ```
 
-Then add the Stop hook to `~/.claude/settings.json`:
+This will:
+- Install `/gas` and `/gaspoll` skills to `~/.claude/skills/`
+- Install the stop hook to `~/.claude/hooks/`
+- Auto-register the hook in `~/.claude/settings.json` (merges with existing settings)
+- Auto-detect `bun` for faster hook execution
+
+#### Project-local install
+
+To install into the current project instead of globally:
+
+```bash
+./install.sh --local
+```
+
+This installs everything to `.claude/` in the current directory.
+
+### Option B: Manual
+
+1. Copy the skills:
+
+```bash
+mkdir -p ~/.claude/skills/gas ~/.claude/skills/gaspoll
+cp skills/gas/SKILL.md ~/.claude/skills/gas/SKILL.md
+cp skills/gaspoll/SKILL.md ~/.claude/skills/gaspoll/SKILL.md
+```
+
+2. Copy the hook:
+
+```bash
+mkdir -p ~/.claude/hooks
+cp hook-scripts/gas-stop-hook.js ~/.claude/hooks/gas-stop-hook.js
+```
+
+3. Register the hook in `~/.claude/settings.json`:
 
 ```jsonc
 {
@@ -82,25 +104,6 @@ Then add the Stop hook to `~/.claude/settings.json`:
 ```
 
 > **Tip:** Use `bun` instead of `node` for faster hook execution.
-
-### Option C: Manual
-
-1. Copy the skills:
-
-```bash
-mkdir -p ~/.claude/skills/gas ~/.claude/skills/gaspoll
-cp skills/gas/SKILL.md ~/.claude/skills/gas/SKILL.md
-cp skills/gaspoll/SKILL.md ~/.claude/skills/gaspoll/SKILL.md
-```
-
-2. Copy the hook:
-
-```bash
-mkdir -p ~/.claude/hooks
-cp hook-scripts/gas-stop-hook.js ~/.claude/hooks/gas-stop-hook.js
-```
-
-3. Register the hook in `~/.claude/settings.json` (see above).
 
 ### Verify
 
@@ -182,10 +185,14 @@ Hook checks: .claude/gas.lock exists?
   ├─ No  → Allow stop (not in gas mode)
   └─ Yes → Check last message for **DONE** / **BLOCKED**
               ├─ Found → Delete lock, allow stop
-              └─ Not found → Block stop, tell Claude to use TaskList and continue
+              └─ Not found → Is this gaspoll mode?
+                                ├─ Yes → Did Claude skip the reflection loop?
+                                │         ├─ Yes → Block with Completion Audit checklist
+                                │         └─ No  → Block with reflection loop reminder
+                                └─ No  → Block, tell Claude to use TaskList and continue
 ```
 
-The hook is intentionally simple — all task state lives in Claude Code's built-in task system. The hook only needs to know whether gas mode is active (lock file) and whether Claude has declared completion (markers).
+The hook detects gaspoll mode via the lock file content (`gaspoll:<timestamp>`) and enforces the self-reflection loop. For `/gas`, it uses the simpler "check TaskList and continue" message.
 
 ## Project Structure
 
